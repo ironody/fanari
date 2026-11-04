@@ -109,18 +109,22 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     <div class="note">Η εφαρμογή δεν προτείνει ποτέ ταχύτητα πάνω από το «έως». Βάλε εκεί το όριο του δρόμου.</div>
   </section>
 
-  <p class="note">Οι χρόνοι βγήκαν από τα βίντεό σου (Δ1: 4/11 10:52, Δ2: 4/11 16:52) με ακρίβεια περίπου ±1″. Αν δεις ότι κάποιο φανάρι έχει ξεφύγει, πάτα «Άναψε πράσινο τώρα» τη στιγμή που ανάβει. Μην πειράζεις το κινητό όσο οδηγείς.</p>
+  <p class="note">Οι χρόνοι βγήκαν από τα βίντεό σου με ακρίβεια περίπου ±1″. Η Διασταύρωση 1 έχει άλλο πρόγραμμα το πρωί και άλλο το απόγευμα· η ώρα που αλλάζει (14:00) είναι ακόμα εκτίμηση. Αν δεις ότι κάποιο φανάρι έχει ξεφύγει, πάτα «Άναψε πράσινο τώρα» τη στιγμή που ανάβει. Μην πειράζεις το κινητό όσο οδηγείς.</p>
 </div>
 
 <script>
 (function(){
   // Measured signal plans. ref = moment the green for "our" direction lit (ms since epoch).
   const LIGHTS=[
-    {id:1,name:"Διασταύρωση 1",cycle:90,ref:Date.parse("2026-11-04T10:52:26.4+02:00"),
-     phases:[["g",31],["y",4],["r",55]],
-     extra:"Βέλος αριστερά: πράσινο 37″–51″, πορτοκαλί 51″–54″ του κύκλου"},
-    {id:2,name:"Διασταύρωση 2",cycle:85,ref:Date.parse("2026-11-04T16:52:49.2+02:00"),
-     phases:[["g",26],["y",4],["r",55]],extra:""}
+    // Each light can have several daily programs; "from" = local time the program starts (wraps past midnight).
+    {id:1,name:"Διασταύρωση 1",plans:[
+      {key:"m",name:"Πρωινό",from:"07:00",guess:true,cycle:90,ref:Date.parse("2026-11-04T10:52:26.4+02:00"),
+       phases:[["g",31],["y",4],["r",55]],extra:"Βέλος αριστερά: πράσινο 37″–51″, πορτοκαλί 51″–54″ του κύκλου",src:"βίντεο 4/11 10:52"},
+      {key:"e",name:"Απόγευμα/βράδυ",from:"14:00",guess:true,cycle:85,ref:Date.parse("2026-11-04T19:56:02.8+02:00"),
+       phases:[["g",28],["y",4],["r",53]],extra:"",src:"βίντεο 4/11 19:51 και 19:56"}]},
+    {id:2,name:"Διασταύρωση 2",plans:[
+      {key:"a",name:"Όλη μέρα",from:"00:00",guess:false,cycle:85,ref:Date.parse("2026-11-04T16:52:49.2+02:00"),
+       phases:[["g",26],["y",4],["r",55]],extra:"",src:"βίντεο 4/11 16:52"}]}
   ];
   const DIST12=1400, DEPART_LAG=4;
   let passedAt=null;
@@ -129,7 +133,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
 
   const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
                set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-  LIGHTS.forEach(L=>{L.name=store.get("name"+L.id,L.name);L.baseRef=L.ref;L.ref=store.get("ref"+L.id,L.ref);L.dist=store.get("dist"+L.id,500);L.pos=store.get("pos"+L.id,null)});
+  LIGHTS.forEach(L=>{L.name=store.get("name"+L.id,L.name);L.plans.forEach(P=>{P.baseRef=P.ref;P.ref=store.get("ref"+L.id+P.key,P.ref);P.fromMin=+P.from.slice(0,2)*60+ +P.from.slice(3)});L.dist=store.get("dist"+L.id,500);L.pos=store.get("pos"+L.id,null)});
   let vmin=store.get("vmin",35), vmax=store.get("vmax",60);
 
   const sMin=document.getElementById("vmin"), sMax=document.getElementById("vmax");
@@ -138,21 +142,35 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
   sMin.onchange=()=>{vmin=+sMin.value;if(vmin>vmax){vmax=vmin;sMax.value=vmax}store.set("vmin",vmin);store.set("vmax",vmax);tick()};
   sMax.onchange=()=>{vmax=+sMax.value;if(vmax<vmin){vmin=vmax;sMin.value=vmin}store.set("vmin",vmin);store.set("vmax",vmax);tick()};
 
-  const greenLen=L=>L.phases[0][1];
+  // which program runs at time t (by local clock)
+  function planAt(L,t){
+    if(L.plans.length===1) return L.plans[0];
+    const d=new Date(t), m=d.getHours()*60+d.getMinutes();
+    const sorted=[...L.plans].sort((a,b)=>a.fromMin-b.fromMin);
+    let cur=sorted[sorted.length-1];
+    for(const P of sorted) if(P.fromMin<=m) cur=P;
+    return cur;
+  }
+  const greenLen=P=>P.phases[0][1];
+  // latest moment at or before t when program P started (local clock)
+  function planStartBefore(P,t){const d=new Date(t);d.setHours(+P.from.slice(0,2),+P.from.slice(3),0,0);if(d.getTime()>t)d.setDate(d.getDate()-1);return d.getTime()}
+  // The controller restarts each program at the same clock time every day, so the phase is counted from the program's start.
+  function cyclePos(P,t){let x=((t-planStartBefore(P,t))-(P.ref-planStartBefore(P,P.ref)))/1000%P.cycle;if(x<0)x+=P.cycle;return x}
   function phaseAt(L,t){
-    let x=((t-L.ref)/1000)%L.cycle; if(x<0)x+=L.cycle;
+    const P=planAt(L,t);
+    let x=cyclePos(P,t);
     let acc=0;
-    for(const [c,d] of L.phases){ if(x<acc+d) return {c,left:acc+d-x,x,toGreen:c==="g"?0:L.cycle-x}; acc+=d }
-    return {c:"r",left:0,x,toGreen:0};
+    for(const [c,d] of P.phases){ if(x<acc+d) return {c,left:acc+d-x,x,cycle:P.cycle,toGreen:c==="g"?0:P.cycle-x}; acc+=d }
+    return {c:"r",left:0,x,cycle:P.cycle,toGreen:0};
   }
   // first green start at or before t
-  function greenStartBefore(L,t){const k=Math.floor((t-L.ref)/1000/L.cycle);return L.ref+k*L.cycle*1000}
+  function greenStartBefore(L,t){const P=planAt(L,t);return t-cyclePos(P,t)*1000}
 
   // Speed advice: find the earliest green window reachable at a steady speed in [vmin,vmax].
   function advise(L,d,t0){
-    const lo=vmin/3.6, hi=vmax/3.6, G=greenLen(L);
+    const lo=vmin/3.6, hi=vmax/3.6, P=planAt(L,t0), G=greenLen(P);
     let g=greenStartBefore(L,t0);
-    for(let k=0;k<6;k++,g+=L.cycle*1000){
+    for(let k=0;k<6;k++,g+=P.cycle*1000){
       let a=(g-t0)/1000+1, b=(g-t0)/1000+G-2;      // 1″ after green, 2″ before yellow
       if(b<=0) continue;
       a=Math.max(a,0.01);
@@ -171,7 +189,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     const arr=ph.c==="g"?"":"";
     if(d<=0) return {cls:"",html:""};
     if(!a.ok){
-      return {cls:"stop",html:`Δεν το βρίσκεις πράσινο με ${vmin}–${vmax} km/h. Επόμενο πράσινο σε <b>${fmtS(ph.c==="g"?L.cycle-ph.x:ph.toGreen)}</b>. Πήγαινε χαλαρά.`};
+      return {cls:"stop",html:`Δεν το βρίσκεις πράσινο με ${vmin}–${vmax} km/h. Επόμενο πράσινο σε <b>${fmtS(ph.c==="g"?ph.cycle-ph.x:ph.toGreen)}</b>. Πήγαινε χαλαρά.`};
     }
     const range=r5(a.vLo)===r5(a.vHi)?`<b>${r5(a.vLo)} km/h</b>`:`<b>${r5(a.vLo)}–${r5(a.vHi)} km/h</b>`;
     if(a.current) return {cls:"ok",html:`Το προλαβαίνεις: πήγαινε με ${range}.`};
@@ -205,7 +223,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
         <button id="rs${L.id}">Επαναφορά</button>
         <button id="here${L.id}">Το φανάρι είναι εδώ</button>
       </div>
-      <div class="meta">Κύκλος ${L.cycle}″ · πράσινο ${L.phases[0][1]}″ · πορτοκαλί ${L.phases[1][1]}″ · κόκκινο ${L.phases[2][1]}″${L.extra?"<br>"+L.extra:""}</div>
+      <div class="meta" id="plan${L.id}"></div>
       <div class="meta" id="refm${L.id}"></div>`;
     host.appendChild(c);
     const nm=c.querySelector("#nm"+L.id); nm.value=L.name;
@@ -214,24 +232,24 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     const chips=c.querySelector("#chips"+L.id);
     DISTS.forEach(d=>{const b=document.createElement("button");b.textContent=d>=1000?(d/1000).toString().replace(".",",")+" km":d+" m";
       b.onclick=()=>{L.dist=d;store.set("dist"+L.id,d);wake();tick()};b.dataset.d=d;chips.appendChild(b)});
-    c.querySelector("#sync"+L.id).onclick=()=>{const now=Date.now();L.ref=now;save(L);
-      let sh=((now-L.baseRef)/1000)%L.cycle; if(sh<0)sh+=L.cycle; if(sh>=L.cycle/2)sh-=L.cycle;
-      syncLog.unshift({id:L.id,t:now,s:Math.round(sh*10)/10}); syncLog=syncLog.slice(0,60); store.set("syncLog",syncLog);
+    c.querySelector("#sync"+L.id).onclick=()=>{const now=Date.now(),P=planAt(L,now);P.ref=now;save(L,P);
+      let sh=cyclePos({...P,ref:P.baseRef},now); if(sh>=P.cycle/2)sh-=P.cycle;
+      syncLog.unshift({id:L.id,t:now,s:Math.round(sh*10)/10,p:P.name}); syncLog=syncLog.slice(0,60); store.set("syncLog",syncLog);
       renderLog();wake();tick()};
-    c.querySelector("#m"+L.id).onclick=()=>{L.ref-=1000;save(L);tick()};
-    c.querySelector("#p"+L.id).onclick=()=>{L.ref+=1000;save(L);tick()};
-    c.querySelector("#rs"+L.id).onclick=()=>{L.ref=L.baseRef;save(L);tick()};
+    c.querySelector("#m"+L.id).onclick=()=>{const P=planAt(L,Date.now());P.ref-=1000;save(L,P);tick()};
+    c.querySelector("#p"+L.id).onclick=()=>{const P=planAt(L,Date.now());P.ref+=1000;save(L,P);tick()};
+    c.querySelector("#rs"+L.id).onclick=()=>{L.plans.forEach(P=>{P.ref=P.baseRef;save(L,P)});tick()};
     c.querySelector("#here"+L.id).onclick=()=>{
       if(gps&&Date.now()-gps.t<10000){L.pos={lat:gps.lat,lon:gps.lon};store.set("pos"+L.id,L.pos);tick()}
       else{startGps();document.getElementById("gd"+L.id).textContent="Περιμένω σήμα GPS. Πάτα ξανά σε λίγα δευτερόλεπτα."}};
     ui[L.id]={lamp:c.querySelector("#lamp"+L.id),big:c.querySelector("#big"+L.id),sub:c.querySelector("#sub"+L.id),
-      strip:c.querySelector("#strip"+L.id),gd:c.querySelector("#gd"+L.id),adv:c.querySelector("#adv"+L.id),chips,refm:c.querySelector("#refm"+L.id)};
+      strip:c.querySelector("#strip"+L.id),plan:c.querySelector("#plan"+L.id),gd:c.querySelector("#gd"+L.id),adv:c.querySelector("#adv"+L.id),chips,refm:c.querySelector("#refm"+L.id)};
   });
-  function save(L){store.set("ref"+L.id,L.ref)}
+  function save(L,P){store.set("ref"+L.id+P.key,P.ref)}
   let syncLog=store.get("syncLog",[]);
   const fmtD=ms=>new Date(ms).toLocaleString("el-GR",{weekday:"short",day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
   const shTxt=s=>(s>0?"+":s<0?"−":"±")+Math.abs(s).toFixed(1).replace(".",",")+"″";
-  function logLines(){return syncLog.map(e=>{const L=LIGHTS.find(x=>x.id===e.id);return fmtD(e.t)+" · "+(L?L.name:"Διασταύρωση "+e.id)+" · "+shTxt(e.s)})}
+  function logLines(){return syncLog.map(e=>{const L=LIGHTS.find(x=>x.id===e.id);return fmtD(e.t)+" · "+(L?L.name:"Διασταύρωση "+e.id)+(e.p?" ("+e.p+")":"")+" · "+shTxt(e.s)})}
   function renderLog(){
     const ul=document.getElementById("log");
     if(!syncLog.length){ul.innerHTML='<li><span class="meta">Δεν έχεις συγχρονίσει ακόμα κανένα φανάρι.</span></li>';return}
@@ -308,9 +326,9 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
       }
     }
     // upcoming departures from 1
-    const L1=LIGHTS[0]; let g=greenStartBefore(L1,t); if(g+ (greenLen(L1)-6)*1000<t) g+=L1.cycle*1000;
+    const L1=LIGHTS[0], P1=planAt(L1,t); let g=greenStartBefore(L1,t); if(g+ (greenLen(P1)-6)*1000<t) g+=P1.cycle*1000;
     let html="";
-    for(let i=0;i<6;i++,g+=L1.cycle*1000){
+    for(let i=0;i<6;i++,g+=P1.cycle*1000){
       const dep=g+DEPART_LAG*1000, a=advise(L2,DIST12,dep);
       let txt,cls;
       if(!a.ok){txt="κόκκινο";cls="bad-t"}
@@ -336,8 +354,11 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
       u.gd.textContent=ld!=null?"Απόσταση από GPS: "+(ld>=1000?(ld/1000).toFixed(2).replace(".",",")+" km":Math.round(ld)+" m"):
         (L.pos?(gps?"":"Η θέση του φαναριού είναι αποθηκευμένη. Άνοιξε το GPS για αυτόματη απόσταση."):"Για αυτόματη απόσταση: σταμάτα στο φανάρι και πάτα «Το φανάρι είναι εδώ».");
       const a=adviceHTML(L,ld!=null?ld:L.dist,t); u.adv.className="advice "+a.cls; u.adv.innerHTML=a.html;
-      const shift=Math.round((((L.ref-L.baseRef)/1000)%L.cycle+L.cycle+L.cycle/2)%L.cycle-L.cycle/2);
-      u.refm.textContent=shift===0?"Συγχρονισμός: από το βίντεο":"Συγχρονισμός: διορθωμένο κατά "+(shift>0?"+":"")+shift+"″";
+      const P=planAt(L,t);
+      u.plan.innerHTML=(L.plans.length>1?`Πρόγραμμα: <b>${P.name}</b> (από ${P.from}${P.guess?", ώρα αλλαγής κατά προσέγγιση":""}) · `:"")+
+        `Κύκλος ${P.cycle}″ · πράσινο ${P.phases[0][1]}″ · πορτοκαλί ${P.phases[1][1]}″ · κόκκινο ${P.phases[2][1]}″${P.extra?"<br>"+P.extra:""}`;
+      const shift=Math.round((((P.ref-P.baseRef)/1000)%P.cycle+P.cycle+P.cycle/2)%P.cycle-P.cycle/2);
+      u.refm.textContent=shift===0?"Συγχρονισμός: από "+P.src:"Συγχρονισμός: διορθωμένο κατά "+(shift>0?"+":"")+shift+"″";
     });
     routeTick(t);
     if(gps){const age=(t-gps.t)/1000;document.getElementById("gpsStat").textContent=
