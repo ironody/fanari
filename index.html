@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Εφαρμογή φανάρι">
+<meta name="theme-color" content="#0b0f12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}</style>
+</head>
+<body>
+<title>Εφαρμογή φανάρι</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fira+Sans+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one column of glanceable "dashboard" cards, built for a phone on a car mount. Deliberately dark-only for night driving. */
+:root{
+  --bg:#0b0f12; --surface:#141a1e; --surface2:#1b2328; --line:#26323a;
+  --fg:#e9eff1; --muted:#8c9aa1;
+  --g:#33dd83; --y:#ffb321; --r:#ff4d3f; --accent:#5cc8ff;
+  --ui:"Fira Sans Condensed","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --num:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--ui);font-size:16px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 40px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-size:26px;font-weight:700;margin:0;letter-spacing:.01em;text-wrap:balance}
+.clock{font-family:var(--num);font-size:20px;color:var(--muted);font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.row{display:flex;align-items:center;gap:14px}
+.lamp{width:64px;height:64px;border-radius:50%;flex:none;background:var(--surface2);border:3px solid var(--line);transition:background .2s,box-shadow .2s}
+.lamp.g{background:var(--g);box-shadow:0 0 28px color-mix(in srgb,var(--g) 60%,transparent)}
+.lamp.y{background:var(--y);box-shadow:0 0 28px color-mix(in srgb,var(--y) 60%,transparent)}
+.lamp.r{background:var(--r);box-shadow:0 0 28px color-mix(in srgb,var(--r) 60%,transparent)}
+.state{display:flex;flex-direction:column;min-width:0}
+.state .name{font-size:18px;font-weight:600}
+.state input.name{font-family:var(--ui);color:var(--fg);background:transparent;border:0;border-bottom:1px dashed var(--line);border-radius:0;padding:0 0 2px;width:100%;min-width:0}
+.state input.name:focus{outline:none;border-bottom-color:var(--accent)}
+.state .big{font-family:var(--num);font-weight:700;font-size:44px;line-height:1.05;font-variant-numeric:tabular-nums}
+.state .sub{color:var(--muted);font-size:15px}
+.big.g{color:var(--g)} .big.y{color:var(--y)} .big.r{color:var(--r)}
+.strip{width:100%;height:46px;display:block}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+button,select{font-family:var(--ui);font-size:15px;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);color:#06222f;border-color:var(--accent);font-weight:700}
+button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
+.advice{background:var(--surface2);border-radius:10px;padding:10px 12px;font-size:16px;border-left:4px solid var(--line)}
+.advice.ok{border-left-color:var(--g)} .advice.wait{border-left-color:var(--y)} .advice.stop{border-left-color:var(--r)}
+.advice b{font-family:var(--num);font-weight:700}
+.meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.syncrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.list li{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:15px}
+.list .t{font-family:var(--num);font-variant-numeric:tabular-nums}
+.ok-t{color:var(--g)} .bad-t{color:var(--r)} .mid-t{color:var(--y)}
+.settings{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.settings label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:14px}
+.note{font-size:13px;color:var(--muted)}
+.live{font-family:var(--num);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){.lamp{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Εφαρμογή φανάρι</h1>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <section class="card" aria-labelledby="gps-h">
+    <div class="eyebrow" id="gps-h">GPS</div>
+    <div class="syncrow"><button id="gpsBtn">Ενεργοποίηση GPS</button><span class="meta" id="gpsStat">Ανενεργό · διαλέγεις απόσταση με το χέρι</span></div>
+  </section>
+
+  <div id="lights"></div>
+
+  <section class="card" aria-labelledby="route-h">
+    <div class="eyebrow" id="route-h">Διαδρομή 1 → 2 (1,4 km)</div>
+    <button class="primary" id="passed">Πέρασα τώρα τη Διασταύρωση 1</button>
+    <div id="routeOut" class="advice">Πάτα το κουμπί τη στιγμή που περνάς το πρώτο φανάρι. Θα δεις με τι ταχύτητα να πας για να βρεις το επόμενο πράσινο. Με GPS και αποθηκευμένη θέση φαναριού, πατιέται μόνο του.</div>
+    <div class="eyebrow" id="combo-h">Επόμενα πράσινα της 1 · τι βρίσκεις στη 2</div>
+    <ul class="list" id="combo"></ul>
+    <div class="note">Υπολογίζεται σαν να ξεκινάς 4″ μετά το πράσινο της 1 και να κρατάς σταθερή ταχύτητα μέσα στα όρια που διάλεξες.</div>
+  </section>
+
+  <section class="card" aria-labelledby="set-h">
+    <div class="eyebrow" id="set-h">Ταχύτητες</div>
+    <div class="settings">
+      <label for="vmin">Από <select id="vmin"></select></label>
+      <label for="vmax">έως <select id="vmax"></select> km/h</label>
+    </div>
+    <div class="note">Η εφαρμογή δεν προτείνει ποτέ ταχύτητα πάνω από το «έως». Βάλε εκεί το όριο του δρόμου.</div>
+  </section>
+
+  <p class="note">Οι χρόνοι βγήκαν από τα βίντεό σου (Δ1: 4/11 10:52, Δ2: 4/11 16:52) με ακρίβεια περίπου ±1″. Αν δεις ότι κάποιο φανάρι έχει ξεφύγει, πάτα «Άναψε πράσινο τώρα» τη στιγμή που ανάβει. Μην πειράζεις το κινητό όσο οδηγείς.</p>
+</div>
+
+<script>
+(function(){
+  // Measured signal plans. ref = moment the green for "our" direction lit (ms since epoch).
+  const LIGHTS=[
+    {id:1,name:"Διασταύρωση 1",cycle:90,ref:Date.parse("2026-11-04T10:52:26.4+02:00"),
+     phases:[["g",31],["y",4],["r",55]],
+     extra:"Βέλος αριστερά: πράσινο 37″–51″, πορτοκαλί 51″–54″ του κύκλου"},
+    {id:2,name:"Διασταύρωση 2",cycle:85,ref:Date.parse("2026-11-04T16:52:49.2+02:00"),
+     phases:[["g",26],["y",4],["r",55]],extra:""}
+  ];
+  const DIST12=1400, DEPART_LAG=4;
+  let passedAt=null;
+  const LABEL={g:"ΠΡΑΣΙΝΟ",y:"ΠΟΡΤΟΚΑΛΙ",r:"ΚΟΚΚΙΝΟ"};
+  const DISTS=[200,500,1000,1500,2500];
+
+  const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+               set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+  LIGHTS.forEach(L=>{L.name=store.get("name"+L.id,L.name);L.baseRef=L.ref;L.ref=store.get("ref"+L.id,L.ref);L.dist=store.get("dist"+L.id,500);L.pos=store.get("pos"+L.id,null)});
+  let vmin=store.get("vmin",35), vmax=store.get("vmax",60);
+
+  const sMin=document.getElementById("vmin"), sMax=document.getElementById("vmax");
+  for(let v=20;v<=90;v+=5){sMin.add(new Option(v,v));sMax.add(new Option(v,v))}
+  sMin.value=vmin;sMax.value=vmax;
+  sMin.onchange=()=>{vmin=+sMin.value;if(vmin>vmax){vmax=vmin;sMax.value=vmax}store.set("vmin",vmin);store.set("vmax",vmax);tick()};
+  sMax.onchange=()=>{vmax=+sMax.value;if(vmax<vmin){vmin=vmax;sMin.value=vmin}store.set("vmin",vmin);store.set("vmax",vmax);tick()};
+
+  const greenLen=L=>L.phases[0][1];
+  function phaseAt(L,t){
+    let x=((t-L.ref)/1000)%L.cycle; if(x<0)x+=L.cycle;
+    let acc=0;
+    for(const [c,d] of L.phases){ if(x<acc+d) return {c,left:acc+d-x,x,toGreen:c==="g"?0:L.cycle-x}; acc+=d }
+    return {c:"r",left:0,x,toGreen:0};
+  }
+  // first green start at or before t
+  function greenStartBefore(L,t){const k=Math.floor((t-L.ref)/1000/L.cycle);return L.ref+k*L.cycle*1000}
+
+  // Speed advice: find the earliest green window reachable at a steady speed in [vmin,vmax].
+  function advise(L,d,t0){
+    const lo=vmin/3.6, hi=vmax/3.6, G=greenLen(L);
+    let g=greenStartBefore(L,t0);
+    for(let k=0;k<6;k++,g+=L.cycle*1000){
+      let a=(g-t0)/1000+1, b=(g-t0)/1000+G-2;      // 1″ after green, 2″ before yellow
+      if(b<=0) continue;
+      a=Math.max(a,0.01);
+      const vLo=Math.max(d/b,lo), vHi=Math.min(d/a,hi);
+      if(vLo<=vHi) return {ok:true,current:k===0&&g<=t0,next:k,vLo:vLo*3.6,vHi:vHi*3.6,
+                           tLo:d/vHi,tHi:d/vLo,greenAt:g};
+    }
+    return {ok:false};
+  }
+  const r5=v=>Math.round(v);
+  const fmtT=ms=>new Date(ms).toLocaleTimeString("el-GR",{hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+  const fmtS=s=>{s=Math.max(0,Math.ceil(s));return s>=60?Math.floor(s/60)+":"+String(s%60).padStart(2,"0"):s+"″"};
+
+  function adviceHTML(L,d,t0){
+    const a=advise(L,d,t0), ph=phaseAt(L,t0);
+    const arr=ph.c==="g"?"":"";
+    if(d<=0) return {cls:"",html:""};
+    if(!a.ok){
+      return {cls:"stop",html:`Δεν το βρίσκεις πράσινο με ${vmin}–${vmax} km/h. Επόμενο πράσινο σε <b>${fmtS(ph.c==="g"?L.cycle-ph.x:ph.toGreen)}</b>. Πήγαινε χαλαρά.`};
+    }
+    const range=r5(a.vLo)===r5(a.vHi)?`<b>${r5(a.vLo)} km/h</b>`:`<b>${r5(a.vLo)}–${r5(a.vHi)} km/h</b>`;
+    if(a.current) return {cls:"ok",html:`Το προλαβαίνεις: πήγαινε με ${range}.`};
+    // reachable only on a later green: say clearly not to rush
+    return {cls:a.next>1?"wait":"wait",html:`Το τωρινό πράσινο δεν το προλαβαίνεις. Με ${range} φτάνεις στο επόμενο πράσινο χωρίς να σταματήσεις.`};
+  }
+
+  // ---- build light cards
+  const host=document.getElementById("lights"); host.style.display="flex";host.style.flexDirection="column";host.style.gap="14px";
+  const ui={};
+  LIGHTS.forEach(L=>{
+    const c=document.createElement("section");c.className="card";c.setAttribute("aria-label",L.name);
+    c.innerHTML=`
+      <div class="row">
+        <div class="lamp" id="lamp${L.id}"></div>
+        <div class="state">
+          <input class="name" id="nm${L.id}" maxlength="40" aria-label="Όνομα διασταύρωσης ${L.id}" title="Πάτα για να αλλάξεις το όνομα">
+          <span class="big" id="big${L.id}">--</span>
+          <span class="sub" id="sub${L.id}"></span>
+        </div>
+      </div>
+      <svg class="strip" id="strip${L.id}" viewBox="0 0 300 46" preserveAspectRatio="none" role="img" aria-label="Επόμενα 3 λεπτά"></svg>
+      <div class="eyebrow">Πόσο απέχεις;</div>
+      <div class="chips" id="chips${L.id}"></div>
+      <div class="meta" id="gd${L.id}"></div>
+      <div class="advice" id="adv${L.id}"></div>
+      <div class="syncrow">
+        <button class="sync" id="sync${L.id}">Άναψε πράσινο τώρα</button>
+        <button id="m${L.id}" aria-label="Μετακίνηση 1 δευτερόλεπτο νωρίτερα">−1″</button>
+        <button id="p${L.id}" aria-label="Μετακίνηση 1 δευτερόλεπτο αργότερα">+1″</button>
+        <button id="rs${L.id}">Επαναφορά</button>
+        <button id="here${L.id}">Το φανάρι είναι εδώ</button>
+      </div>
+      <div class="meta">Κύκλος ${L.cycle}″ · πράσινο ${L.phases[0][1]}″ · πορτοκαλί ${L.phases[1][1]}″ · κόκκινο ${L.phases[2][1]}″${L.extra?"<br>"+L.extra:""}</div>
+      <div class="meta" id="refm${L.id}"></div>`;
+    host.appendChild(c);
+    const nm=c.querySelector("#nm"+L.id); nm.value=L.name;
+    nm.addEventListener("input",()=>{L.name=nm.value.trim()||("Διασταύρωση "+L.id);c.setAttribute("aria-label",L.name);store.set("name"+L.id,L.name);names()});
+    nm.addEventListener("keydown",e=>{if(e.key==="Enter")nm.blur()});
+    const chips=c.querySelector("#chips"+L.id);
+    DISTS.forEach(d=>{const b=document.createElement("button");b.textContent=d>=1000?(d/1000).toString().replace(".",",")+" km":d+" m";
+      b.onclick=()=>{L.dist=d;store.set("dist"+L.id,d);wake();tick()};b.dataset.d=d;chips.appendChild(b)});
+    c.querySelector("#sync"+L.id).onclick=()=>{L.ref=Date.now();save(L);wake();tick()};
+    c.querySelector("#m"+L.id).onclick=()=>{L.ref-=1000;save(L);tick()};
+    c.querySelector("#p"+L.id).onclick=()=>{L.ref+=1000;save(L);tick()};
+    c.querySelector("#rs"+L.id).onclick=()=>{L.ref=L.baseRef;save(L);tick()};
+    c.querySelector("#here"+L.id).onclick=()=>{
+      if(gps&&Date.now()-gps.t<10000){L.pos={lat:gps.lat,lon:gps.lon};store.set("pos"+L.id,L.pos);tick()}
+      else{startGps();document.getElementById("gd"+L.id).textContent="Περιμένω σήμα GPS. Πάτα ξανά σε λίγα δευτερόλεπτα."}};
+    ui[L.id]={lamp:c.querySelector("#lamp"+L.id),big:c.querySelector("#big"+L.id),sub:c.querySelector("#sub"+L.id),
+      strip:c.querySelector("#strip"+L.id),gd:c.querySelector("#gd"+L.id),adv:c.querySelector("#adv"+L.id),chips,refm:c.querySelector("#refm"+L.id)};
+  });
+  function save(L){store.set("ref"+L.id,L.ref)}
+  // ---- GPS (works when opened as its own web page; inside Claude the browser blocks it)
+  let gps=null, watching=false, near={min:1e9,t:0};
+  function hav(a,b,c,d){const R=6371000,toR=Math.PI/180,dl=(c-a)*toR,dn=(d-b)*toR;
+    const h=Math.sin(dl/2)**2+Math.cos(a*toR)*Math.cos(c*toR)*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))}
+  function startGps(){
+    const st=document.getElementById("gpsStat");
+    if(watching) return;
+    if(!navigator.geolocation){st.textContent="Αυτή η συσκευή δεν δίνει GPS εδώ.";return}
+    watching=true; st.textContent="Ψάχνω σήμα…";
+    navigator.geolocation.watchPosition(p=>{
+      gps={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy,spd:p.coords.speed,t:Date.now()};
+      store.set("gpsOn",true);
+      // auto-detect passing light 1: closest approach under 40 m, then moving away
+      const L1=LIGHTS[0];
+      if(L1.pos){const d=hav(gps.lat,gps.lon,L1.pos.lat,L1.pos.lon);
+        if(d<40&&d<near.min){near={min:d,t:gps.t}}
+        else if(near.min<40&&d>near.min+25){passedAt=near.t;near={min:1e9,t:0}}}
+      tick();
+    },e=>{watching=false;st.textContent=e.code===1?"Δεν δόθηκε άδεια για τοποθεσία. Επίτρεψέ την από τις Ρυθμίσεις του Safari.":"Δεν βρέθηκε σήμα GPS ("+e.message+")."},
+    {enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+  }
+  document.getElementById("gpsBtn").onclick=()=>{startGps();wake()};
+  if(store.get("gpsOn",false)) startGps();
+  function liveDist(L){return gps&&L.pos&&Date.now()-gps.t<15000?hav(gps.lat,gps.lon,L.pos.lat,L.pos.lon):null}
+  function names(){
+    const a=LIGHTS[0].name,b=LIGHTS[1].name;
+    document.getElementById("route-h").textContent=a+" → "+b+" (1,4 km)";
+    document.getElementById("passed").textContent="Πέρασα τώρα: "+a;
+    document.getElementById("combo-h").textContent="Επόμενα πράσινα: "+a+" → "+b;
+  }
+  names();
+
+  function drawStrip(L,t,svg){
+    const span=180, W=300, col={g:"var(--g)",y:"var(--y)",r:"var(--r)"};
+    let s="", tt=0;
+    while(tt<span){
+      const p=phaseAt(L,t+tt*1000), len=Math.min(p.left,span-tt);
+      s+=`<rect x="${(tt/span*W).toFixed(2)}" y="6" width="${(len/span*W+0.3).toFixed(2)}" height="18" fill="${col[p.c]}" opacity="${p.c==="r"?0.55:0.9}"/>`;
+      tt+=Math.max(len,0.05);
+    }
+    for(let m=0;m<=span;m+=30){const x=m/span*W;
+      s+=`<line x1="${x}" y1="26" x2="${x}" y2="31" stroke="var(--muted)" stroke-width="1"/>`;
+      s+=`<text x="${Math.min(Math.max(x,6),W-12)}" y="43" fill="var(--muted)" font-size="10" font-family="JetBrains Mono,monospace" text-anchor="middle">${m===0?"τώρα":m%60===0?"+"+m/60+"′":"+"+m+"″"}</text>`}
+    s+=`<rect x="0" y="3" width="2" height="24" fill="var(--fg)"/>`;
+    svg.innerHTML=s;
+  }
+
+  // ---- route 1 -> 2
+  document.getElementById("passed").onclick=()=>{passedAt=Date.now();wake();tick()};
+  function routeTick(t){
+    const out=document.getElementById("routeOut"), L2=LIGHTS[1];
+    if(passedAt){
+      const a=advise(L2,DIST12,passedAt), el=(t-passedAt)/1000;
+      if(el>300){passedAt=null}
+      else if(!a.ok){out.className="advice stop";out.innerHTML=`Με ${vmin}–${vmax} km/h θα σε πιάσει κόκκινο στο «${LIGHTS[1].name}». Μην τρέχεις.`}
+      else{
+        const range=r5(a.vLo)===r5(a.vHi)?`${r5(a.vLo)} km/h`:`${r5(a.vLo)}–${r5(a.vHi)} km/h`;
+        const remLo=a.tLo-el, remHi=a.tHi-el;
+        out.className="advice "+(a.current?"ok":"wait");
+        out.innerHTML=`Κράτα <b>${range}</b>${a.current?"":" (θα βρεις το επόμενο πράσινο)"}.<br>Φτάσε στο φανάρι «${LIGHTS[1].name}» σε <span class="live">${remHi<0?"—":fmtS(Math.max(remLo,0))+"–"+fmtS(remHi)}</span>`;
+      }
+    }
+    // upcoming departures from 1
+    const L1=LIGHTS[0]; let g=greenStartBefore(L1,t); if(g+ (greenLen(L1)-6)*1000<t) g+=L1.cycle*1000;
+    let html="";
+    for(let i=0;i<6;i++,g+=L1.cycle*1000){
+      const dep=g+DEPART_LAG*1000, a=advise(L2,DIST12,dep);
+      let txt,cls;
+      if(!a.ok){txt="κόκκινο";cls="bad-t"}
+      else{const range=r5(a.vLo)===r5(a.vHi)?r5(a.vLo):r5(a.vLo)+"–"+r5(a.vHi);
+        txt=`πράσινο με ${range} km/h`;cls="ok-t"}
+      html+=`<li><span class="t">${fmtT(g)}</span><span class="${cls}">${txt}</span></li>`;
+    }
+    document.getElementById("combo").innerHTML=html;
+  }
+
+  function tick(){
+    const t=Date.now();
+    document.getElementById("clock").textContent=fmtT(t);
+    LIGHTS.forEach(L=>{
+      const p=phaseAt(L,t), u=ui[L.id];
+      u.lamp.className="lamp "+p.c;
+      u.big.className="big "+p.c;
+      if(p.c==="g"){u.big.textContent=fmtS(p.left);u.sub.textContent="ΠΡΑΣΙΝΟ · κλείνει σε "+fmtS(p.left)}
+      else{u.big.textContent=fmtS(p.toGreen);u.sub.textContent=LABEL[p.c]+" · πράσινο σε "+fmtS(p.toGreen)+" ("+fmtT(t+p.toGreen*1000)+")"}
+      drawStrip(L,t,u.strip);
+      const ld=liveDist(L);
+      [...u.chips.children].forEach(b=>b.setAttribute("aria-pressed",String(ld==null&&+b.dataset.d===L.dist)));
+      u.gd.textContent=ld!=null?"Απόσταση από GPS: "+(ld>=1000?(ld/1000).toFixed(2).replace(".",",")+" km":Math.round(ld)+" m"):
+        (L.pos?(gps?"":"Η θέση του φαναριού είναι αποθηκευμένη. Άνοιξε το GPS για αυτόματη απόσταση."):"Για αυτόματη απόσταση: σταμάτα στο φανάρι και πάτα «Το φανάρι είναι εδώ».");
+      const a=adviceHTML(L,ld!=null?ld:L.dist,t); u.adv.className="advice "+a.cls; u.adv.innerHTML=a.html;
+      const shift=Math.round((((L.ref-L.baseRef)/1000)%L.cycle+L.cycle+L.cycle/2)%L.cycle-L.cycle/2);
+      u.refm.textContent=shift===0?"Συγχρονισμός: από το βίντεο":"Συγχρονισμός: διορθωμένο κατά "+(shift>0?"+":"")+shift+"″";
+    });
+    routeTick(t);
+    if(gps){const age=(t-gps.t)/1000;document.getElementById("gpsStat").textContent=
+      age>15?"Χάθηκε το σήμα GPS":"Ενεργό · ακρίβεια ±"+Math.round(gps.acc)+" m"+(gps.spd!=null&&gps.spd>=0?" · "+Math.round(gps.spd*3.6)+" km/h":"")}
+  }
+  let lock=null;
+  async function wake(){try{if(!lock&&navigator.wakeLock){lock=await navigator.wakeLock.request("screen");lock.addEventListener("release",()=>{lock=null})}}catch(e){}}
+  tick(); setInterval(tick,250);
+})();
+</script>
+
+</body>
+</html>
