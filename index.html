@@ -128,6 +128,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
   ];
   const DIST12=1400, DEPART_LAG=4;
   let passedAt=null;
+  const REACT_MS=1000; // typical delay between seeing the green and tapping
   const LABEL={g:"ΠΡΑΣΙΝΟ",y:"ΠΟΡΤΟΚΑΛΙ",r:"ΚΟΚΚΙΝΟ"};
   const DISTS=[200,500,1000,1500,2500];
 
@@ -232,7 +233,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     const chips=c.querySelector("#chips"+L.id);
     DISTS.forEach(d=>{const b=document.createElement("button");b.textContent=d>=1000?(d/1000).toString().replace(".",",")+" km":d+" m";
       b.onclick=()=>{L.dist=d;store.set("dist"+L.id,d);wake();tick()};b.dataset.d=d;chips.appendChild(b)});
-    c.querySelector("#sync"+L.id).onclick=()=>{const now=Date.now(),P=planAt(L,now);P.ref=now;save(L,P);
+    c.querySelector("#sync"+L.id).onclick=()=>{const now=Date.now()-REACT_MS,P=planAt(L,now);P.ref=now;save(L,P);
       let sh=cyclePos({...P,ref:P.baseRef},now); if(sh>=P.cycle/2)sh-=P.cycle;
       syncLog.unshift({id:L.id,t:now,s:Math.round(sh*10)/10,p:P.name}); syncLog=syncLog.slice(0,60); store.set("syncLog",syncLog);
       renderLog();wake();tick()};
