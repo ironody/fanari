@@ -109,7 +109,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     <div class="note">Η εφαρμογή δεν προτείνει ποτέ ταχύτητα πάνω από το «έως». Βάλε εκεί το όριο του δρόμου.</div>
   </section>
 
-  <p class="note">Οι χρόνοι βγήκαν από τα βίντεό σου με ακρίβεια περίπου ±1″. Η Διασταύρωση 1 έχει άλλο πρόγραμμα το πρωί και άλλο το απόγευμα· η ώρα που αλλάζει (14:00) είναι ακόμα εκτίμηση. Αν δεις ότι κάποιο φανάρι έχει ξεφύγει, πάτα «Άναψε πράσινο τώρα» τη στιγμή που ανάβει. Μην πειράζεις το κινητό όσο οδηγείς.</p>
+  <p class="note">Οι χρόνοι βγήκαν από τα βίντεό σου με ακρίβεια περίπου ±1″. Η Διασταύρωση 1 έχει πρωινό πρόγραμμα 90″ και στις 12:00 γυρίζει σε 85″. Πάτα «Άναψε πράσινο τώρα» μία φορά το πρωί και η εφαρμογή βρίσκει μόνη της και το απόγευμα. Αν δεις ότι κάποιο φανάρι έχει ξεφύγει, πάτα «Άναψε πράσινο τώρα» τη στιγμή που ανάβει. Μην πειράζεις το κινητό όσο οδηγείς.</p>
 </div>
 
 <script>
@@ -120,8 +120,8 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     {id:1,name:"Διασταύρωση 1",plans:[
       {key:"m",name:"Πρωινό",from:"07:00",guess:true,cycle:90,ref:Date.parse("2026-11-06T09:44:41.4+02:00"),
        phases:[["g",31],["y",4],["r",55]],extra:"Βέλος αριστερά: πράσινο 37″–51″, πορτοκαλί 51″–54″ του κύκλου",src:"βίντεο 6/11 09:44 (το πρωί μπορεί να μετακινείται λίγο από μέρα σε μέρα)"},
-      {key:"e",name:"Απόγευμα/βράδυ",from:"14:00",guess:true,continuous:true,cycle:85,ref:Date.parse("2026-11-04T19:56:34.7+02:00"),
-       phases:[["g",28],["y",4],["r",53]],extra:"",src:"3 συγχρονισμούς 4–5/11 (συνεχής κύκλος 85″)"}]},
+      {key:"e",name:"Απόγευμα/βράδυ",from:"12:00",guess:false,derivedFrom:"m",cycle:85,ref:Date.parse("2026-11-04T19:56:34.7+02:00"),
+       phases:[["g",28],["y",4],["r",53]],extra:"",src:"το πρώτο πρωινό πράσινο μετά τις 12:00"}]},
     {id:2,name:"Διασταύρωση 2",plans:[
       {key:"a",name:"Όλη μέρα",from:"00:00",guess:false,continuous:true,cycle:85,ref:Date.parse("2026-11-04T16:52:49.2+02:00"),
        phases:[["g",26],["y",4],["r",55]],extra:"",src:"βίντεο 4/11 16:52"}]}
@@ -134,7 +134,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
 
   const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
                set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-  LIGHTS.forEach(L=>{L.name=store.get("name"+L.id,L.name);L.plans.forEach(P=>{P.baseRef=P.ref;P.ref=store.get("ref"+L.id+P.key,P.ref);P.fromMin=+P.from.slice(0,2)*60+ +P.from.slice(3)});L.dist=store.get("dist"+L.id,500);L.pos=store.get("pos"+L.id,null)});
+  LIGHTS.forEach(L=>{L.name=store.get("name"+L.id,L.name);L.plans.forEach(P=>{P.L=L;P.baseRef=P.ref;P.ref=store.get("ref"+L.id+P.key,P.ref);P.fromMin=+P.from.slice(0,2)*60+ +P.from.slice(3)});L.dist=store.get("dist"+L.id,500);L.pos=store.get("pos"+L.id,null)});
   let vmin=store.get("vmin",35), vmax=store.get("vmax",60);
 
   const sMin=document.getElementById("vmin"), sMax=document.getElementById("vmax");
@@ -157,7 +157,20 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
   function planStartBefore(P,t){const d=new Date(t);d.setHours(+P.from.slice(0,2),+P.from.slice(3),0,0);if(d.getTime()>t)d.setDate(d.getDate()-1);return d.getTime()}
   // The controller restarts each program at the same clock time every day, so the phase is counted from the program's start.
   // continuous: the controller never restarts (seen on Δ2 across midnight 4→5/11)
-  function cyclePos(P,t){let x=(P.continuous?(t-P.ref):((t-planStartBefore(P,t))-(P.ref-planStartBefore(P,P.ref))))/1000%P.cycle;if(x<0)x+=P.cycle;return x}
+  // derivedFrom: at its start time the program begins on the first green of the program before it
+  // (found on Δ1: 12:00 switch on 4/11 and 6/11). A sync inside the current run overrides it.
+  function cyclePos(P,t,useBase){
+    let x;
+    if(P.derivedFrom){
+      const S=planStartBefore(P,t);
+      if(!useBase&&P.ref>=S-1000) x=(t-P.ref)/1000;
+      else{const M=P.L.plans.find(q=>q.key===P.derivedFrom), c=M.cycle*1000;
+        const A=M.ref+Math.ceil((S-M.ref)/c)*c; x=(t-A)/1000}
+    } else {
+      const ref=useBase?P.baseRef:P.ref;
+      x=(P.continuous?(t-ref):((t-planStartBefore(P,t))-(ref-planStartBefore(P,ref))))/1000;
+    }
+    x%=P.cycle; if(x<0)x+=P.cycle; return x}
   function phaseAt(L,t){
     const P=planAt(L,t);
     let x=cyclePos(P,t);
@@ -235,7 +248,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
     DISTS.forEach(d=>{const b=document.createElement("button");b.textContent=d>=1000?(d/1000).toString().replace(".",",")+" km":d+" m";
       b.onclick=()=>{L.dist=d;store.set("dist"+L.id,d);wake();tick()};b.dataset.d=d;chips.appendChild(b)});
     c.querySelector("#sync"+L.id).onclick=()=>{const now=Date.now()-REACT_MS,P=planAt(L,now);P.ref=now;save(L,P);
-      let sh=cyclePos({...P,ref:P.baseRef},now); if(sh>=P.cycle/2)sh-=P.cycle;
+      let sh=cyclePos(P,now,true); if(sh>=P.cycle/2)sh-=P.cycle;
       const prev=syncLog.find(e=>e.id===L.id); let cyc=null;
       if(prev){const dt=(now-prev.t)/1000; if(dt>=50&&dt<=200) cyc=Math.round(dt*10)/10; else if(dt>200&&dt<=400) cyc=Math.round(dt/2*10)/10+" (÷2)";}
       syncLog.unshift({id:L.id,t:now,s:Math.round(sh*10)/10,p:P.name,c:cyc}); syncLog=syncLog.slice(0,60); store.set("syncLog",syncLog);
@@ -261,7 +274,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
       return `<li><span class="t">${fmtD(e.t)}</span><span>${L?L.name:""} <b class="${Math.abs(e.s)<=2?"ok-t":"mid-t"}">${shTxt(e.s)}</b>${e.c?` · κύκλος <b>${e.c}″</b>`:""}</span></li>`}).join("");
   }
   document.getElementById("logCopy").onclick=()=>{
-    const txt="Ιστορικό συγχρονισμών (απόκλιση από τους χρόνους του βίντεο):\n"+logLines().join("\n");
+    const txt="Ιστορικό συγχρονισμών (απόκλιση από την πρόβλεψη):\n"+logLines().join("\n");
     const msg=document.getElementById("logMsg");
     const done=()=>{msg.textContent="Αντιγράφηκε. Επικόλλησέ το στη συζήτηση με το Claude."};
     try{navigator.clipboard.writeText(txt).then(done,()=>{msg.textContent="Δεν έγινε αντιγραφή. Στείλε στιγμιότυπο οθόνης."})}catch(e){msg.textContent="Δεν έγινε αντιγραφή. Στείλε στιγμιότυπο οθόνης."}
@@ -361,7 +374,7 @@ button.sync{border-color:color-mix(in srgb,var(--g) 50%,var(--line))}
       const P=planAt(L,t);
       u.plan.innerHTML=(L.plans.length>1?`Πρόγραμμα: <b>${P.name}</b> (από ${P.from}${P.guess?", ώρα αλλαγής κατά προσέγγιση":""}) · `:"")+
         `Κύκλος ${P.cycle}″ · πράσινο ${P.phases[0][1]}″ · πορτοκαλί ${P.phases[1][1]}″ · κόκκινο ${P.phases[2][1]}″${P.extra?"<br>"+P.extra:""}`;
-      const shift=Math.round((((P.ref-P.baseRef)/1000)%P.cycle+P.cycle+P.cycle/2)%P.cycle-P.cycle/2);
+      const shift=P.derivedFrom?(P.ref>=planStartBefore(P,t)-1000?Math.round(((cyclePos(P,t)-cyclePos(P,t,true))%P.cycle+P.cycle*1.5)%P.cycle-P.cycle/2):0):Math.round((((P.ref-P.baseRef)/1000)%P.cycle+P.cycle+P.cycle/2)%P.cycle-P.cycle/2);
       u.refm.textContent=shift===0?"Συγχρονισμός: από "+P.src:"Συγχρονισμός: διορθωμένο κατά "+(shift>0?"+":"")+shift+"″";
     });
     routeTick(t);
